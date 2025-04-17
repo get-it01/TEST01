@@ -1,22 +1,7 @@
-# import os
-# import pandas as pd
-# import numpy as np
-# import sqlalchemy
-# import pymysql
-# from sqlalchemy import create_engine
-# import pyecharts
 
-# # 从mysql中读取数据
-# def read_mysql(data):
-#     engine = create_engine('mysql://root:root@localhost:3306/dbtest')
-#     data = pd.read_sql('select * from tap_fun_test',con=engine)
-#     print(data.head())
-#     print(data.info())
-# # 使用echarts生成柱状图
 import os
 import pandas as pd
 import numpy as np
-import sqlalchemy
 import pymysql
 from sqlalchemy import create_engine, text
 from pyecharts.charts import Bar, Pie
@@ -101,20 +86,59 @@ def generate_bar_chart_newuser(data):
 
 
 
-def generate_bar_chart_newuser(data):
+
+# data = data[['user_id', 'register_time', 'pvp_battle_count', 'pvp_lanch_count', 'pvp_win_count', 'pve_battle_count',
+#          'pve_lanch_count', 'pve_win_count', 'avg_online_minutes', 'pay_price', 'pay_count']
+#     ]
+
+# 数据库获取胜率相关的数据
+def read_mysql_winrate():
+    sql = '''
+select
+    'PVP' as `GAME_TYPE`,
+    SUM(pvp_win_count)/SUM(pvp_battle_count) as `PVE_WIN`,
+    SUM(CASE when pay_price > 0 then pvp_win_count else 0 end )/SUM(CASE when pay_price > 0 then pvp_battle_count else 0 end) as `PVE_WIN_PRICE`,
+    SUM(CASE when pay_price = 0 then pvp_win_count else 0 end )/SUM(CASE when pay_price = 0 then pvp_battle_count else 0 end) as `PVE_WIN_NOPRICE`
+from
+    tap_fun_test
+union all
+select
+    'PVE' AS `GAME_TYPE`,
+    SUM(pve_win_count)/SUM(pve_battle_count) as `PVE_WIN`,
+    SUM(CASE when pay_price > 0 then pve_win_count else 0 end )/SUM(CASE when pay_price > 0 then pve_battle_count else 0 end) as `PVE_WIN_PRICE`,
+    SUM(CASE when pay_price = 0 then pve_win_count else 0 end )/SUM(CASE when pay_price = 0 then pve_battle_count else 0 end) as `PVE_WIN_NOPRICE`
+from
+    tap_fun_test
+    '''
+    engine = create_engine('mysql+pymysql://root:mysql@localhost:3306/dbtest')
+    with engine.connect() as con:
+        result = con.execute(text(sql))
+        return pd.DataFrame(result.fetchall(), columns=result.keys())
+
+# 写一个函数，根据传入的数据，生成柱状图，表示游戏类型和付费用户的胜率
+def generate_bar_chart_winrate(data):
     bar = (
         Bar()
-            .add_xaxis(data['date'].tolist())
-            .add_yaxis("人数", data['new_user'].tolist(), label_opts=opts.LabelOpts(position="inside"))
-            .set_global_opts(title_opts=opts.TitleOpts(title="每日新注册用户数量"))
+            .add_xaxis(data['GAME_TYPE'].tolist())
+            .add_yaxis("PVE_WIN", data['PVE_WIN'].tolist(), label_opts=opts.LabelOpts(position="inside"))
+            .add_yaxis("PVE_WIN_PRICE", data['PVE_WIN_PRICE'].tolist(), label_opts=opts.LabelOpts(position="inside"))
+            .add_yaxis("PVE_WIN_NOPRICE", data['PVE_WIN_NOPRICE'].tolist(), label_opts=opts.LabelOpts(position="inside"))
+            .set_global_opts(title_opts=opts.TitleOpts(title="游戏类型和付费用户的胜率"))
     )
     bar.render_notebook()# 生成柱状图
     # 保存到本地
-    bar.render("bar_newuser.html")
+    bar.render("bar_winrate.html")
+    # 打开html文件
+    
+
+
 
 
 if __name__ == "__main__":
-    data = read_mysql_newuser()
-    generate_bar_chart_newuser(data)
-    data = read_mysql()
-    generate_pie_chart(data)
+    # data = read_mysql_newuser()
+    # generate_bar_chart_newuser(data)
+    # data = read_mysql()
+    # generate_pie_chart(data)
+    # data = read_mysql_winrate()
+    # generate_bar_chart_winrate(data)
+    os.system("bar_winrate.html")

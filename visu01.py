@@ -67,23 +67,27 @@ def generate_bar_chart(data):
 
 
 
-# mysql提取每日新注册用户数量，并使用echartsvis生成柱状图
-sql = '''
-    select
-        count(user_id) as new_user
-    from
-        tap_fun_test
-    group by
-        register_time
-    order by
-        register_time desc
-'''
+
+
 def read_mysql_newuser():
+    #sql语句 从register_time字段提取日期，并统计每日新注册用户数量
+    sql = '''
+        select
+            date(register_time) as date,
+            count(user_id) as new_user
+        from
+            tap_fun_test
+        group by
+            date(register_time)
+        order by
+            date(register_time) desc
+    '''
     engine = create_engine('mysql+pymysql://root:mysql@localhost:3306/dbtest')
     with engine.connect() as con:
         result = con.execute(text(sql))
         return pd.DataFrame(result.fetchall(), columns=result.keys())
 
+# 写一个函数，根据传入的数据，register_time和new_user数量，生成柱状图，表示每日新增用户数
 def generate_bar_chart_newuser(data):
     bar = (
         Bar()
@@ -97,9 +101,20 @@ def generate_bar_chart_newuser(data):
 
 
 
-
+def generate_bar_chart_newuser(data):
+    bar = (
+        Bar()
+            .add_xaxis(data['date'].tolist())
+            .add_yaxis("人数", data['new_user'].tolist(), label_opts=opts.LabelOpts(position="inside"))
+            .set_global_opts(title_opts=opts.TitleOpts(title="每日新注册用户数量"))
+    )
+    bar.render_notebook()# 生成柱状图
+    # 保存到本地
+    bar.render("bar_newuser.html")
 
 
 if __name__ == "__main__":
-    # data = read_mysql()
-    # generate_pie_chart(data)
+    data = read_mysql_newuser()
+    generate_bar_chart_newuser(data)
+    data = read_mysql()
+    generate_pie_chart(data)
